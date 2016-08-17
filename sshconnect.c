@@ -27,6 +27,11 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#ifdef LINUX_IPV6_PREF_FLAGS
+/* this only works on linux */
+#  include <linux/in6.h>
+#endif
+
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -267,6 +272,32 @@ ssh_kill_proxy_command(void)
 		kill(proxy_command_pid, SIGHUP);
 }
 
+
+#ifdef LINUX_IPV6_PREF_FLAGS
+static int
+ssh_mod_ipv6bindpref(int fd, int add, int del)
+{
+	int val;
+	int err;
+	socklen_t len = sizeof(val);
+	err = getsockopt(fd, IPPROTO_IPV6, IPV6_ADDR_PREFERENCES, &val, &len);
+	if (err < 0) {
+		error("getsockopt IPV6_ADDR_PREFERENCES: %.100s",
+		      strerror(errno));
+		return err;
+	}
+
+	val &= ~del;
+	val |= add;
+	err = setsockopt(fd, IPPROTO_IPV6, IPV6_ADDR_PREFERENCES, &val, len);
+	if (err < 0) {
+		error("setsockopt IPV6_ADDR_PREFERENCES: %.100s",
+		      strerror(errno));
+	}
+	return err;
+}
+#endif
+
 /*
  * Creates a (possibly privileged) socket for use as the ssh connection.
  */
@@ -282,6 +313,32 @@ ssh_create_socket(int privileged, struct addrinfo *ai)
 		return -1;
 	}
 	fcntl(sock, F_SETFD, FD_CLOEXEC);
+
+#ifdef LINUX_IPV6_PREF_FLAGS
+	/*
+	 * Advise the OS whether to use public or temporary IPv6 addresses for
+	 * our socket
+	 */
+	if (ai->ai_family == AF_INET6) {
+		switch (options.ipv6_bind_pref) {
+		case SSH_IPV6BINDPREF_PUB:
+			ssh_mod_ipv6bindpref(sock,
+			                     IPV6_PREFER_SRC_PUBLIC,
+			                     (IPV6_PREFER_SRC_TMP |
+			                      IPV6_PREFER_SRC_PUBTMP_DEFAULT));
+			break;
+		case SSH_IPV6BINDPREF_TMP:
+			ssh_mod_ipv6bindpref(sock,
+			                     IPV6_PREFER_SRC_TMP,
+			                     (IPV6_PREFER_SRC_PUBLIC |
+			                      IPV6_PREFER_SRC_PUBTMP_DEFAULT));
+			break;
+		default:
+			/* do nothing */
+			break;
+		}
+	}
+#endif
 
 	/* Bind the socket to an alternative local IP address */
 	if (options.bind_address == NULL && !privileged)

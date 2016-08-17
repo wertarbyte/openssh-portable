@@ -87,6 +87,7 @@ typedef struct {
 	char   *user_hostfiles[SSH_MAX_HOSTS_FILES];
 	char   *preferred_authentications;
 	char   *bind_address;	/* local socket address for connection to sshd */
+	int     ipv6_bind_pref; /* which types of IPv6 addresses to prefer (pub/tmp) */
 	char   *pkcs11_provider; /* PKCS#11 provider */
 	int	verify_host_key_dns;	/* Verify host key using DNS */
 
@@ -180,6 +181,10 @@ typedef struct {
 #define SSHCTL_MASTER_AUTO	2
 #define SSHCTL_MASTER_ASK	3
 #define SSHCTL_MASTER_AUTO_ASK	4
+
+#define SSH_IPV6BINDPREF_NONE	0
+#define SSH_IPV6BINDPREF_TMP	1
+#define SSH_IPV6BINDPREF_PUB	2
 
 #define REQUEST_TTY_AUTO	0
 #define REQUEST_TTY_NO		1

@@ -784,6 +784,12 @@ main() { if (NSVersionOfRunTimeLibrary("System") >= (60 << 16))
 			[Define if cmsg_type is not passed correctly])
 		;;
 	esac
+	# linux specific IPv6 sock options
+	AC_CHECK_HEADERS([linux/in6.h])
+	if test "x$ac_cv_header_linux_in6_h" = "xyes" ; then
+		AC_DEFINE([LINUX_IPV6_PREF_FLAGS], [1],
+		    [Use Linux specific IPv6 options])
+	fi
 	# tun(4) forwarding compat code
 	AC_CHECK_HEADERS([linux/if_tun.h])
 	if test "x$ac_cv_header_linux_if_tun_h" = "xyes" ; then

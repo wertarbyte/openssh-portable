@@ -171,6 +171,7 @@ typedef enum {
 	oStreamLocalBindMask, oStreamLocalBindUnlink, oRevokedHostKeys,
 	oFingerprintHash, oUpdateHostkeys, oHostbasedKeyTypes,
 	oPubkeyAcceptedKeyTypes, oProxyJump,
+	oIpv6BindPref,
 	oIgnoredUnknownOption, oDeprecated, oUnsupported
 } OpCodes;
 
@@ -296,6 +297,11 @@ static struct {
 	{ "pubkeyacceptedkeytypes", oPubkeyAcceptedKeyTypes },
 	{ "ignoreunknown", oIgnoreUnknown },
 	{ "proxyjump", oProxyJump },
+#ifdef LINUX_IPV6_PREF_FLAGS
+	{ "ipv6bindpref", oIpv6BindPref },
+#else
+	{ "ipv6bindpref", oUnsupported },
+#endif
 
 	{ NULL, oBadOption }
 };
@@ -757,6 +763,14 @@ static const struct multistate multistate_addressfamily[] = {
 	{ "any",			AF_UNSPEC },
 	{ NULL, -1 }
 };
+static const struct multistate multistate_ipv6bindpref[] = {
+	{ "none",			SSH_IPV6BINDPREF_NONE },
+	{ "temp",			SSH_IPV6BINDPREF_TMP },
+	{ "tmp",			SSH_IPV6BINDPREF_TMP },
+	{ "pub",			SSH_IPV6BINDPREF_PUB },
+	{ "public",			SSH_IPV6BINDPREF_PUB },
+	{ NULL, -1 }
+};
 static const struct multistate multistate_controlmaster[] = {
 	{ "true",			SSHCTL_MASTER_YES },
 	{ "yes",			SSHCTL_MASTER_YES },
@@ -1144,6 +1158,11 @@ parse_command:
 			    filename, linenum, s + len);
 		}
 		return 0;
+
+	case oIpv6BindPref:
+		intptr = &options->ipv6_bind_pref;
+		multistate_ptr = multistate_ipv6bindpref;
+		goto parse_multistate;
 
 	case oPort:
 		intptr = &options->port;
@@ -1858,6 +1877,7 @@ initialize_options(Options * options)
 	options->update_hostkeys = -1;
 	options->hostbased_key_types = NULL;
 	options->pubkey_key_types = NULL;
+	options->ipv6_bind_pref = -1;
 }
 
 /*
@@ -2045,6 +2065,8 @@ fill_default_options(Options * options)
 		options->fingerprint_hash = SSH_FP_HASH_DEFAULT;
 	if (options->update_hostkeys == -1)
 		options->update_hostkeys = 0;
+	if (options->ipv6_bind_pref == -1)
+		options->ipv6_bind_pref = SSH_IPV6BINDPREF_NONE;
 	if (kex_assemble_names(KEX_CLIENT_ENCRYPT, &options->ciphers) != 0 ||
 	    kex_assemble_names(KEX_CLIENT_MAC, &options->macs) != 0 ||
 	    kex_assemble_names(KEX_CLIENT_KEX, &options->kex_algorithms) != 0 ||
