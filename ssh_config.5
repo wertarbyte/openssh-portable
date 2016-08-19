@@ -284,6 +284,22 @@ Note that this option does not work if
 .Cm UsePrivilegedPort
 is set to
 .Dq yes .
+.Pp
+Additionally, this option may be used to control the selection of IPv6
+binding addresses on platforms that support it.
+A
+.Cm BindAddress
+of
+.Dq %public
+or
+.Dq %pub
+will cause
+.Xr ssh 1
+to use a stable public IPv6 address, while
+.Dq %temp
+or
+.Dq %tmp
+will prefer a randomised temporary address.
 .It Cm CanonicalDomains
 When
 .Cm CanonicalizeHostname

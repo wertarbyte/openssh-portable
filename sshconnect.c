@@ -66,6 +66,10 @@
 #include "ssherr.h"
 #include "authfd.h"
 
+#ifdef LINUX_IPV6_PREF_FLAGS
+#  include <linux/in6.h>
+#endif
+
 char *client_version_string = NULL;
 char *server_version_string = NULL;
 Key *previous_host_key = NULL;
@@ -267,6 +271,51 @@ ssh_kill_proxy_command(void)
 		kill(proxy_command_pid, SIGHUP);
 }
 
+#ifdef HAS_IPV6_SRC_PREF
+enum ssh_bindpref {BINDPREF_PUB, BINDPREF_TMP};
+
+static int
+ssh_mod_ipv6bindpref(int fd, enum ssh_bindpref pref)
+{
+#  ifdef LINUX_IPV6_PREF_FLAGS
+	int val;
+	int err;
+	socklen_t len = sizeof(val);
+	int add = 0;
+	switch (pref) {
+	case BINDPREF_PUB:
+		add = IPV6_PREFER_SRC_PUBLIC;
+		break;
+	case BINDPREF_TMP:
+		add = IPV6_PREFER_SRC_TMP;
+		break;
+	default:
+		error("Unknown ssh_bindpref value");
+		return -1;
+	}
+	err = getsockopt(fd, IPPROTO_IPV6, IPV6_ADDR_PREFERENCES, &val, &len);
+	if (err < 0) {
+		error("getsockopt IPV6_ADDR_PREFERENCES: %.100s",
+		      strerror(errno));
+		return err;
+	}
+
+	val &= ~(IPV6_PREFER_SRC_PUBLIC|IPV6_PREFER_SRC_TMP|
+	         IPV6_PREFER_SRC_PUBTMP_DEFAULT);
+	val |= add;
+	err = setsockopt(fd, IPPROTO_IPV6, IPV6_ADDR_PREFERENCES, &val, len);
+	if (err < 0) {
+		error("setsockopt IPV6_ADDR_PREFERENCES: %.100s",
+		      strerror(errno));
+	}
+	return err;
+#  else
+	error("Setting IPv6 address source address not supported");
+	return -1;
+#  endif
+}
+#endif
+
 /*
  * Creates a (possibly privileged) socket for use as the ssh connection.
  */
@@ -275,6 +324,7 @@ ssh_create_socket(int privileged, struct addrinfo *ai)
 {
 	int sock, r, gaierr;
 	struct addrinfo hints, *res = NULL;
+	char *bind_address = options.bind_address;
 
 	sock = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
 	if (sock < 0) {
@@ -283,19 +333,42 @@ ssh_create_socket(int privileged, struct addrinfo *ai)
 	}
 	fcntl(sock, F_SETFD, FD_CLOEXEC);
 
+	/* Set IPV6_ADDR_PREFERENCES through magic bind address */
+	if (bind_address && bind_address[0] == '%') {
+#if defined(HAS_IPV6_SRC_PREF)
+		if (ai->ai_family != AF_INET6) {
+			debug("Not setting address preference on"
+			      " non-IPv6 socket");
+		} else if (strcmp(bind_address, "%pub") == 0 ||
+			   strcmp(bind_address, "%public") == 0) {
+			debug("Setting preference for public IPv6 address");
+			ssh_mod_ipv6bindpref(sock, BINDPREF_PUB);
+		} else if (strcmp(bind_address, "%tmp") == 0 ||
+			   strcmp(bind_address, "%temp") == 0) {
+			debug("Setting preference for temporary IPv6 address");
+			ssh_mod_ipv6bindpref(sock, BINDPREF_TMP);
+		} else {
+			error("Unknown bind address preference: '%s'",
+			      bind_address);
+		}
+#else
+		error("IPv6 address preference selection not supported");
+#endif
+		bind_address = NULL;
+	}
 	/* Bind the socket to an alternative local IP address */
-	if (options.bind_address == NULL && !privileged)
+	if (bind_address == NULL && !privileged)
 		return sock;
 
-	if (options.bind_address) {
+	if (bind_address) {
 		memset(&hints, 0, sizeof(hints));
 		hints.ai_family = ai->ai_family;
 		hints.ai_socktype = ai->ai_socktype;
 		hints.ai_protocol = ai->ai_protocol;
 		hints.ai_flags = AI_PASSIVE;
-		gaierr = getaddrinfo(options.bind_address, NULL, &hints, &res);
+		gaierr = getaddrinfo(bind_address, NULL, &hints, &res);
 		if (gaierr) {
-			error("getaddrinfo: %s: %s", options.bind_address,
+			error("getaddrinfo: %s: %s", bind_address,
 			    ssh_gai_strerror(gaierr));
 			close(sock);
 			return -1;
@@ -316,7 +389,7 @@ ssh_create_socket(int privileged, struct addrinfo *ai)
 		}
 	} else {
 		if (bind(sock, res->ai_addr, res->ai_addrlen) < 0) {
-			error("bind: %s: %s", options.bind_address,
+			error("bind: %s: %s", bind_address,
 			    strerror(errno));
  fail:
 			close(sock);

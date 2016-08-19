@@ -493,6 +493,9 @@ SPP_MSG="no"
 # the --with-solaris-privs option and --with-sandbox=solaris).
 SOLARIS_PRIVS="no"
 
+# Support for IPv6 source address preference selection
+IPV6_SRC_ADDR_PREF_MSG="no"
+
 # Check for some target-specific stuff
 case "$host" in
 *-*-aix*)
@@ -784,6 +787,15 @@ main() { if (NSVersionOfRunTimeLibrary("System") >= (60 << 16))
 			[Define if cmsg_type is not passed correctly])
 		;;
 	esac
+	# linux specific IPv6 sock options
+	AC_CHECK_HEADERS([linux/in6.h])
+	if test "x$ac_cv_header_linux_in6_h" = "xyes" ; then
+		AC_DEFINE([HAS_IPV6_SRC_PREF], [1],
+		    [System has IPv6 source address preference flags])
+		AC_DEFINE([LINUX_IPV6_PREF_FLAGS], [1],
+		    [Use Linux specific IPv6 options])
+		IPV6_SRC_ADDR_PREF_MSG="yes (Linux)"
+	fi
 	# tun(4) forwarding compat code
 	AC_CHECK_HEADERS([linux/if_tun.h])
 	if test "x$ac_cv_header_linux_if_tun_h" = "xyes" ; then
@@ -5099,6 +5111,7 @@ echo "           Solaris project support: $SP_MSG"
 echo "         Solaris privilege support: $SPP_MSG"
 echo "       IP address in \$DISPLAY hack: $DISPLAY_HACK_MSG"
 echo "           Translate v4 in v6 hack: $IPV4_IN6_HACK_MSG"
+echo "IPv6 src addr preference selection: $IPV6_SRC_ADDR_PREF_MSG"
 echo "                  BSD Auth support: $BSD_AUTH_MSG"
 echo "              Random number source: $RAND_MSG"
 echo "             Privsep sandbox style: $SANDBOX_STYLE"
