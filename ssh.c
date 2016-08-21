@@ -1096,6 +1096,20 @@ main(int ac, char **av)
 	 */
 	if (options.jump_host != NULL) {
 		char port_s[8];
+#ifdef HAVE_PROC_SELF_EXE
+		char ssh_path[PATH_MAX];
+#endif
+		char *ssh_cmd = getenv("SSH_CUSTOM_CMD");
+		if (ssh_cmd && ssh_cmd[0] != '\0') {
+			debug("Using custom SSH command: '%s'", ssh_cmd);
+#ifdef HAVE_PROC_SELF_EXE
+		} else if (readlink("/proc/self/exe", ssh_path, PATH_MAX) != -1) {
+			debug("Located own ssh binary: '%s'", ssh_path);
+			ssh_cmd = ssh_path;
+#endif
+		} else {
+			ssh_cmd = "ssh";
+		}
 
 		/* Consistency check */
 		if (options.proxy_command != NULL)
@@ -1104,7 +1118,8 @@ main(int ac, char **av)
 		options.proxy_use_fdpass = 0;
 		snprintf(port_s, sizeof(port_s), "%d", options.jump_port);
 		xasprintf(&options.proxy_command,
-		    "ssh%s%s%s%s%s%s%s%s%s%.*s -W %%h:%%p %s",
+		    "%s%s%s%s%s%s%s%s%s%s%.*s -W %%h:%%p %s",
+		    ssh_cmd,
 		    /* Optional "-l user" argument if jump_user set */
 		    options.jump_user == NULL ? "" : " -l ",
 		    options.jump_user == NULL ? "" : options.jump_user,

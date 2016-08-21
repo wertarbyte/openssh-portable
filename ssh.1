@@ -330,6 +330,11 @@ Multiple jump hops may be specified separated by comma characters.
 This is a shortcut to specify a
 .Cm ProxyJump
 configuration directive.
+When constructing the proxy command lines, the environment variable
+.Ev SSH_CUSTOM_CMD
+can be used to specify the
+.Nm
+binary to use.
 .Pp
 .It Fl K
 Enables GSSAPI-based authentication and forwarding (delegation) of GSSAPI

@@ -1448,6 +1448,14 @@ else
 	AC_MSG_RESULT([no])
 fi
 
+AC_MSG_CHECKING([for /proc/self/exe link])
+if test -L "/proc/self/exe" ; then
+	AC_DEFINE([HAVE_PROC_SELF_EXE], [1], [Define if you have /proc/self/exe])
+	AC_MSG_RESULT([yes])
+else
+	AC_MSG_RESULT([no])
+fi
+
 # Check whether user wants S/Key support
 SKEY_MSG="no"
 AC_ARG_WITH([skey],
